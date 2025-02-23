@@ -1,0 +1,560 @@
+---
+title: Evaluation and application of a Bayesian Hidden Markov Model to the surveillance of BVDV
+subtitle: SVEPM Conference, Berlin
+date: 2025-03-28
+lang: en
+author: 
+  - name: Aurélien Madouasse
+    orcid: 0000-0002-9254-5707
+    email: aurelien.madouasse@inrae.fr
+    affiliations:
+      - name: BIOEPAR (Oniris, INRAE)
+  - name: Matthieu Trotreau
+    affiliations:
+      - name: BIOEPAR
+  - name: Grégoire Kuntz
+  - name: Jean-Michel Galharret
+    affiliations:
+      - StatSC (Oniris, INRAE)
+format: 
+  revealjs:
+    incremental: false
+    slide-number: c/t
+    show-slide-number: all
+    theme: [simple, style.scss]
+    aspect-ratio: 16:9
+    cache: true
+---
+
+
+```{r setup}
+#| echo: false
+#| output: hide
+library(tidyverse)
+library(kableExtra)
+```
+
+
+# Introduction {background="#43464B" background-image="figs/normandes.jpg" style="margin-top: 200px; font-size: 1.5em; text-align: center;"}
+
+## ELISA testing on Bulk Tank Milk (BTM)
+
+- Basis for **surveillance programmes** targeting important cattle diseases
+- Inexpensive and efficient method for detecting pathogens/antibodies at the herd level[^1]
+- Examples of countries where BTM testing is used:
+  - Denmark$^2$: BVDV, *Salmonella* Dublin
+  - Finland$^3$: BVDV, BoHV-1, Leukosis
+  - The Netherlands$^4$: BVDV, BoHV-1, *Leptospira* Hardjo, *Salmonella* Dublin, *Neospora caninum* 
+
+[^1]: [Nobrega et al., 2023a](https://www.sciencedirect.com/science/article/pii/S0022030223000322), [ 2023b](https://www.sciencedirect.com/science/article/pii/S0022030223003181) ; 2. [Nielsen et al., 2021](https://www.frontiersin.org/journals/veterinary-science/articles/10.3389/fvets.2021.685857/full) ; 3. [Autio et al., 2021](https://www.frontiersin.org/journals/veterinary-science/articles/10.3389/fvets.2021.688936/full) ; 4. [Santman-Berends et al., 2021](https://www.frontiersin.org/journals/veterinary-science/articles/10.3389/fvets.2021.670419/full)
+
+## Surveillance programmes of interest for this research
+
+- Systematic herd testing: from once to several times per year
+- Objective: identify herds with at least one infected animal 
+- Programme objectives vary: control, eradication or proof of freedom from infection
+- Challenges in interpreting BTM test results:
+  - Individual animal contribution varies with herd size leading to lower probability of detecting a single infected animal in larger herds
+  - Replacement rate affects seropositivity dynamics
+  - Therefore, no universal gold standard across contexts
+- **How can true herd status be determined from test results?**
+- **How can test sensitivity and specificity be estimated?**
+  
+## Determining test characteristics in the absence of a gold standard with BLCMs
+
+- **Bayesian Latent Class Models (BLCMs)** widely used in epidemiology to estimate test characteristics in the absence of a gold standard
+- Mostly used to determine test characteristics and disease prevalence from binary test results
+- Model assumptions and limitations:
+  - Requires multiple tests per individual
+  - Assume that test characteristics remain constant across different populations
+  - Do not handle longitudinal data well due to unmodelled temporal correlation
+
+## Incorporating test uncertainty and temporal correlation in determining true herd status with HMMs
+
+- **Hidden Markov Models (HMMs)** are statistical models representing a latent, time-dependent variable:
+  - **Latent and discrete:** The variable of interest (e.g., herd infection status: infected/uninfected) is not observed directly
+  - **Imperfectly measured:** Observations (test results) are subject to error, with sensitivity and specificity less than 1
+  - **Markovian dynamics:** Time is discrete; the true status at each time point depends only on the status at the previous time point.
+
+```{r HMM principle, engine = 'tikz', fig.align='center'}
+\usetikzlibrary{decorations.pathreplacing} % Library for curly braces
+
+\begin{tikzpicture}
+\tikzset{state/.style={circle, draw, minimum size=1.2cm, align=center}}
+
+% Labels for Latent State and Observation, vertically aligned and in bold, closer to the first state
+  \node at (-1.2, 0) (latentLabel) {\textbf{Latent state}};
+  \node at (-1.2, -2) (obsLabel) {\textbf{Observation}};
+
+  % Define the first and last nodes
+  \node[state] (Z1) [right of=latentLabel, node distance=2cm] {$Z_1$};
+  \node[state] (Zt1) [right of=Z1, node distance=2.5cm] {$Z_{t-1}$};
+  \node[state] (Zt) [right of=Zt1, node distance=2cm] {$Z_t$};
+  \node[state] (Zt2) [right of=Zt, node distance=2cm] {$Z_{t+1}$};
+  \node[state] (ZT) [right of=Zt2, node distance=2.5cm] {$Z_T$};
+
+
+  % Draw the dashed straight line from Z_1 to Zt1
+  \draw[dashed, ->] (Z1) to (Zt1);
+
+  % Draw the dashed straight line from Zt2 to ZT
+  \draw[dashed, ->] (Zt2) to (ZT);
+
+  % Draw arrows between middle states
+  \draw[->] (Zt1) edge node {} (Zt);
+  \draw[->] (Zt) edge node {} (Zt2);
+
+  % Observations, vertically aligned
+  \node[below of=Z1, node distance=2cm] (Y1) {$Y_1$};
+  \node[below of=Zt1, node distance=2cm] (Yt1) {$Y_{t-1}$};
+  \node[below of=Zt, node distance=2cm] (Yt) {$Y_t$};
+  \node[below of=Zt2, node distance=2cm] (Yt2) {$Y_{t+1}$};
+  \node[below of=ZT, node distance=2cm] (YT) {$Y_T$};
+
+  % Arrows from states to observations
+  \draw[->] (Z1) edge node {} (Y1);
+  \draw[->] (Zt1) edge node {} (Yt1);
+  \draw[->] (Zt) edge node {} (Yt);
+  \draw[->] (Zt2) edge node {} (Yt2);
+  \draw[->] (ZT) edge node {} (YT);
+\end{tikzpicture}
+```
+
+## The STOC free model
+
+::: panel-tabset
+
+### Model overview
+- Model developed:
+  - to predict herd-level probability of freedom, 
+  - from infection from longitudinal surveillance data, as part of the [STOC free project](https://stocfree.eu/)
+- Input: binary longitudinal test results as collected in surveillance programmes
+- Outputs: test characteristics, herd-level probability of infection
+- Monthly time step
+- Bayesian framework, model implemented in Stan, packaged as [the STOCfree R package](https://github.com/AurMad/STOCfree)
+- Priors placed on test characteristics and monthly transition probabilities
+
+### Diagrammes
+From [Madouasse et al., 2022](https://peercommunityjournal.org/articles/10.24072/pcjournal.80/)
+![](figs/STOCfree_model.png){width="100%"}
+
+:::
+
+## The problem with discretising the data
+
+- Test results almost always discretised into negative/positive
+- Loss of valuable information: results far from the cut-off carry less uncertainty than those close to it
+- This information is discarded:
+  - When interpreting test results
+  - In the STOC free model and other BLCMs when estimating test characteristics
+- Several attempts at modelling continuous test results as mixtures of statistical distributions[^5]
+- **Objective of this work:**
+  - **Develop and evaluate an HMM that incorporates continuous test results**
+
+[^5]: e.g., [Branscum et al., 2006](https://onlinelibrary.wiley.com/doi/abs/10.1002/sim.3250) ; [Choi et al., 2006](https://onlinelibrary.wiley.com/doi/abs/10.1002/sim.2365) ; [Yang et al., 2022](https://www.sciencedirect.com/science/article/pii/S0167587722000290) ; [Wang et al., 2024](https://www.sciencedirect.com/science/article/pii/S0167587724000011)
+
+## An HMM integrating continuous test results
+
+:::: {.columns}
+
+::: {.column width="60%"}
+- Similarities with the STOC free model: 
+  - Latent status ($S$) with Markovian dynamics 
+  - Monthly time step
+- Difference: 
+  - Test results ($y$) modelled as a mixture of 2 normal distributions instead of binary outcomes
+:::
+
+::: {.column width="40%"}
+```{r HMM discrete, engine = 'tikz', fig.align='center'}
+\usetikzlibrary{patterns}
+
+
+\begin{tikzpicture}
+% node styles
+\tikzset{latenteState/.style={circle, draw=black, very thick, minimum size=15mm}}
+\tikzset{observation/.style={rectangle, draw=black, very thick, minimum size=10mm}}
+
+% Arrow styles
+\tikzstyle{thickarrow}=[->,very thick,>=latex];
+
+
+%Nodes
+\node[latenteState](S1) {$S=0$};
+\node[latenteState](S2) [right of=S1, node distance =4cm] {$S=1$};
+
+\node[observation](O1)[below right of=S1, node distance =24mm, yshift = -20mm, xshift = 5mm] {$y \sim P(S = 0) Bern(1 - Sp) + P(S = 1) Bern(Se)$};
+
+% Arrows
+\draw[thickarrow, thin] (S1.north east) to[bend left = 45] node[above, font=\small\bfseries] {$\tau_1$} (S2.north west);
+\draw[thickarrow, thin] (S2.south west) to[bend right=-45] node[below, font=\small\bfseries] {$1 - \tau_2$} (S1.south east);
+
+\draw[<-,very thick,>=latex, thin] (S1.south west) to[out=200, in=160,looseness=3] node[left, font=\small\bfseries] {$1 - \tau_1$} (S1.north west);
+\draw[thickarrow, thin] (S2.south east) to[out=-20, in=20,looseness=3] node[right, font=\small\bfseries] {$\tau_2$} (S2.north east);
+
+\draw[dashed] ([yshift=-15mm, xshift=-20mm]S1.south west) --node[above right, font=\small\bfseries, xshift = -55mm] {Latent state}
+node[below right, font=\small\bfseries,  xshift = -55mm] {Observation}
+([yshift=-15mm, xshift=20mm]S2.south east);
+
+\draw[thickarrow, black, ultra thin] (S1.south) -- (O1.north);
+\draw[thickarrow, black, ultra thin] (S2.south) -- (O1.north);
+
+
+\end{tikzpicture}
+```
+:::
+
+::::
+
+:::: {.columns}
+
+::: {.column width="60%"}
+
+```{r mixture, fig.align='center'}
+# Load required libraries
+library(ggplot2)
+
+colrs <- c("aquamarine4", "firebrick")
+
+# Set the parameters for the two normal distributions
+mu0 <- 0     # Mean of the first normal distribution
+sigma0 <- 1  # Standard deviation of the first normal distribution
+lmix0 <- c(-3, 3)
+
+
+mu1 <- 3     # Mean of the second normal distribution
+sigma1 <- 1.5  # Standard deviation of the second normal distribution
+lmix1 <- c(-.5, 6.5)
+
+
+# Proportions for each distribution in the mixture
+prop0 <- 0.6  # Proportion of the first distribution
+prop1 <- 0.4  # Proportion of the second distribution
+
+# Create the plot using geom_function to plot the density functions
+ggplot(data.frame(x = c(-5, 8)), aes(x = x)) +
+  # First normal distribution with proportion
+  geom_function(fun = function(x) prop0 * dnorm(x, mean = mu0, sd = sigma0), 
+                color = colrs[1], size = 1.2, xlim = lmix0) +
+  # Second normal distribution with proportion
+  geom_function(fun = function(x) prop1 * dnorm(x, mean = mu1, sd = sigma1), 
+                color = colrs[2], size = 1.2, xlim = lmix1) +
+  labs(x = "Test result", 
+       y = "Density") +  
+  scale_x_continuous(labels = NULL) +  # Remove x-axis ticks and labels
+  scale_y_continuous(labels = NULL) +  # Remove y-axis ticks and labels
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.title = element_text(size = 25, face = "bold"),  # Make axis labels bigger
+    panel.grid = element_blank(),  # Remove grid
+    axis.line = element_line(colour = "black"),  # Add black axis lines
+    axis.line.x = element_line(arrow = grid::arrow(length = unit(0.3, "cm"), type = "closed")),  # Add arrow to x-axis
+    axis.line.y = element_line(arrow = grid::arrow(length = unit(0.3, "cm"), type = "closed")),  # Add arrow to y-axis
+    axis.ticks = element_blank()  # Remove axis ticks
+  ) +
+  # Add annotations for mu and sigma for the first distribution
+  annotate("text", x = mu0, y = 0.12, label = expression(paste(mu[0], ", ", sigma[0])), color = colrs[1], size = 10, hjust = .5) +
+  # Add annotations for mu and sigma for the second distribution
+  annotate("text", x = mu1, y = 0.05, label = expression(paste(mu[1], ", ", sigma[1])), color = colrs[2], size = 10, hjust = .5) +
+    # Add annotations for mu and sigma for the first distribution
+  annotate("text", x = mu0, y = 0.265, label = expression("y|S = 0"), color = colrs[1], size = 8, hjust = .5) +
+    annotate("text", x = mu1, y = 0.265, label = expression("y|S = 1"), color = colrs[2], size = 8, hjust = .5)
+```
+
+:::
+
+::: {.column width="40%"}
+```{r HMM continuous, engine = 'tikz', fig.align='center'}
+\usetikzlibrary{patterns}
+
+
+\begin{tikzpicture}
+% node styles
+\tikzset{latenteState/.style={circle, draw=black, very thick, minimum size=15mm}}
+\tikzset{observation/.style={rectangle, draw=black, very thick, minimum size=10mm}}
+
+% Arrow styles
+\tikzstyle{thickarrow}=[->,very thick,>=latex];
+
+
+%Nodes
+\node[latenteState](S1) {$S=0$};
+\node[latenteState](S2) [right of=S1, node distance =4cm] {$S=1$};
+
+\node[observation](O1)[below right of=S1, node distance =24mm, yshift = -20mm, xshift = 5mm] {$y \sim P(S = 0) \mathcal{N}(\mu_0, \sigma_0) + P(S = 1) \mathcal{N}(\mu_1, \sigma_1)$};
+
+% Arrows
+\draw[thickarrow, thin] (S1.north east) to[bend left = 45] node[above, font=\small\bfseries] {$\tau_1$} (S2.north west);
+\draw[thickarrow, thin] (S2.south west) to[bend right=-45] node[below, font=\small\bfseries] {$1 - \tau_2$} (S1.south east);
+
+\draw[<-,very thick,>=latex, thin] (S1.south west) to[out=200, in=160,looseness=3] node[left, font=\small\bfseries] {$1 - \tau_1$} (S1.north west);
+\draw[thickarrow, thin] (S2.south east) to[out=-20, in=20,looseness=3] node[right, font=\small\bfseries] {$\tau_2$} (S2.north east);
+
+\draw[dashed] ([yshift=-15mm, xshift=-20mm]S1.south west) --node[above right, font=\small\bfseries, xshift = -55mm] {Latent state}
+node[below right, font=\small\bfseries,  xshift = -55mm] {Observation}
+([yshift=-15mm, xshift=20mm]S2.south east);
+
+\draw[thickarrow, black, ultra thin] (S1.south) -- (O1.north);
+\draw[thickarrow, black, ultra thin] (S2.south) -- (O1.north);
+
+
+\end{tikzpicture}
+```
+:::
+
+::::
+
+## Objectives of this study
+
+- Using simulated data:
+  - Compare parameter estimation between the discrete and continuous HMMs
+- Using real BVDV surveillance data from Brittany, France (2014 - 2020):
+  - Determine the parameters of the distributions of BTM antibody tests results
+  - Assess the dynamics of seroconversion over time
+
+
+# Model evaluation using simulated data{background="#43464B" background-image="figs/normandes.jpg" style="margin-top: 200px; font-size: 1.5em; text-align: center;"}
+
+## Simulated scenarios
+
+- 6 scenarios were simulated to reflect a range of plausible values for the different model parameters
+
+:::: {.columns}
+
+::: {.column width="75%"}
+```{r simulated scenarios}
+# R tibble for simulation scenarios
+scenarios <- tibble(
+  Sc = 1:6,
+  tau1 = c(0.1, 0.1, 0.1, 0.1, 0.2, 0.4),
+  tau2 = c(0.85, 0.85, 0.85, 0.85, 0.7, 0.4),
+  mu0 = c(25, 25, 30, 25, 25, 25),
+  mu1 = c(75, 50, 50, 45, 75, 75),
+  Threshold = c(50, 37.5, 37.5, 37.5, 50, 50),
+  Se = c(0.95, 0.79, 0.79, 0.69, 0.95, 0.95),
+  Sp = c(0.95, 0.79, 0.69, 0.79, 0.95, 0.95)
+) 
+
+knitr::kable(
+  scenarios |>
+  rename(
+    "$\\tau_1$" = tau1,
+    "$\\tau_2$" = tau2,
+    "$\\mu_0$" = mu0,
+    "$\\mu_1$" = mu1,
+    "Cut-off" = Threshold
+    )
+ )
+```
+:::
+
+::: {.column width="25%"}
+```{r HMM discrete1, engine = 'tikz', fig.align='center'}
+\usetikzlibrary{patterns}
+
+
+\begin{tikzpicture}
+% node styles
+\tikzset{latenteState/.style={circle, draw=black, very thick, minimum size=15mm}}
+\tikzset{observation/.style={rectangle, draw=black, very thick, minimum size=10mm}}
+
+% Arrow styles
+\tikzstyle{thickarrow}=[->,very thick,>=latex];
+
+
+%Nodes
+\node[latenteState](S1) {$S=0$};
+\node[latenteState](S2) [right of=S1, node distance =4cm] {$S=1$};
+
+\node[observation](O1)[below right of=S1, node distance =24mm, yshift = -20mm, xshift = 5mm] {$y \sim P(S = 0) Bern(1 - Sp) + P(S = 1) Bern(Se)$};
+
+% Arrows
+\draw[thickarrow, thin] (S1.north east) to[bend left = 45] node[above, font=\small\bfseries] {$\tau_1$} (S2.north west);
+\draw[thickarrow, thin] (S2.south west) to[bend right=-45] node[below, font=\small\bfseries] {$1 - \tau_2$} (S1.south east);
+
+\draw[<-,very thick,>=latex, thin] (S1.south west) to[out=200, in=160,looseness=3] node[left, font=\small\bfseries] {$1 - \tau_1$} (S1.north west);
+\draw[thickarrow, thin] (S2.south east) to[out=-20, in=20,looseness=3] node[right, font=\small\bfseries] {$\tau_2$} (S2.north east);
+
+\draw[dashed] ([yshift=-15mm, xshift=-20mm]S1.south west) --node[above right, font=\small\bfseries, xshift = -55mm] {Latent state}
+node[below right, font=\small\bfseries,  xshift = -55mm] {Observation}
+([yshift=-15mm, xshift=20mm]S2.south east);
+
+\draw[thickarrow, black, ultra thin] (S1.south) -- (O1.north);
+\draw[thickarrow, black, ultra thin] (S2.south) -- (O1.north);
+
+
+\end{tikzpicture}
+```
+
+
+```{r HMM continuous1, engine = 'tikz', fig.align='center'}
+\usetikzlibrary{patterns}
+
+
+\begin{tikzpicture}
+% node styles
+\tikzset{latenteState/.style={circle, draw=black, very thick, minimum size=15mm}}
+\tikzset{observation/.style={rectangle, draw=black, very thick, minimum size=10mm}}
+
+% Arrow styles
+\tikzstyle{thickarrow}=[->,very thick,>=latex];
+
+
+%Nodes
+\node[latenteState](S1) {$S=0$};
+\node[latenteState](S2) [right of=S1, node distance =4cm] {$S=1$};
+
+\node[observation](O1)[below right of=S1, node distance =24mm, yshift = -20mm, xshift = 5mm] {$y \sim P(S = 0) \mathcal{N}(\mu_0, \sigma_0) + P(S = 1) \mathcal{N}(\mu_1, \sigma_1)$};
+
+% Arrows
+\draw[thickarrow, thin] (S1.north east) to[bend left = 45] node[above, font=\small\bfseries] {$\tau_1$} (S2.north west);
+\draw[thickarrow, thin] (S2.south west) to[bend right=-45] node[below, font=\small\bfseries] {$1 - \tau_2$} (S1.south east);
+
+\draw[<-,very thick,>=latex, thin] (S1.south west) to[out=200, in=160,looseness=3] node[left, font=\small\bfseries] {$1 - \tau_1$} (S1.north west);
+\draw[thickarrow, thin] (S2.south east) to[out=-20, in=20,looseness=3] node[right, font=\small\bfseries] {$\tau_2$} (S2.north east);
+
+\draw[dashed] ([yshift=-15mm, xshift=-20mm]S1.south west) --node[above right, font=\small\bfseries, xshift = -55mm] {Latent state}
+node[below right, font=\small\bfseries,  xshift = -55mm] {Observation}
+([yshift=-15mm, xshift=20mm]S2.south east);
+
+\draw[thickarrow, black, ultra thin] (S1.south) -- (O1.north);
+\draw[thickarrow, black, ultra thin] (S2.south) -- (O1.north);
+
+
+\end{tikzpicture}
+```
+:::
+
+::::
+
+- In all scenarios: $\sigma_0 = \sigma_1 = 15$
+- Simulated continuous values were dichotomised using a cut-off that maximised sensitivity and specificity
+
+## Application of the model  
+
+- Each scenario was simulated 1,500 times
+- Data from each simulation used as model input
+- MCMC draws generated by Stan for each parameter analysed and presented
+
+
+## Model convergence
+
+:::: {.columns}
+
+::: {.column width="60%"}
+
+- Convergence for a parameter defined as $\hat{R} < 1.05$
+  - Convergence reached in > 96% of cases
+  - As the difference between $\mu_0$ and $\mu_1$ $\searrow$ the proportion of $\hat{R} < 1.05$ $\nearrow$ for $\tau_1, \tau_2, Se$ and $Sp$.
+  - Poorer convergence in scenario 6, with the least time correlation.
+:::
+
+::: {.column width="40%"}
+
+![](figs/simul_convergence.png){fig-align="right"}
+:::
+
+::::
+
+## Parameter estimation: $\tau_1$ and $\tau_2$
+
+- Bias is close to 0 in all scenarios with the continuous model and in scenarios 1-4 with the discrete model. 
+- Poorly estimated with the discrete model in scenarios 5 and 6.
+- Posterior variance varies across scenarios but is consistently lower with the continuous model.
+  
+![](figs/simul_bias_SD_tau.png){fig-align="center"}
+
+## Parameter estimation: $\mu_0$ and $\mu_1$
+
+- $\mu_0$ accurately estimated for all scenarios
+- $\mu_1$ consistently underestimated across scenarios
+- The standard deviations follow the same pattern as before:
+  - $\nearrow$ when $\mu_0$ and $\mu_1$ are closer
+  - $\nearrow$ with $\searrow$ time correlation in test results 
+
+![](figs/simul_bias_SD_mu.png){fig-align="center"}
+
+# Surveillance of infection by the BVDV in Brittany, France {background="#43464B" background-image="figs/normandes.jpg" style="margin-top: 200px; font-size: 1.5em; text-align: center;"}
+
+## BVD in Brittany
+
+- Infection by the Bovine Viral Diarrhoea Virus (BVDV):
+  - Major impact in newly infected herds (abortions, reproductive problems, mortality)
+  - Infection mostly transmitted by persistently infected (PI) animals: infected *in utero*, massive lifelong excretion of the virus, no antibody production
+- Brittany, a French region (~27 000 km$^2$) is divided into 4 *départements*: 
+  - Côtes d'Armor (22), Finistère (29),  Ille-et-Vilaine (35), Morbihan (56) 
+- BVD surveillance programme in Brittany, since 2014
+  - BTM tested in every herd, every 3 months
+  - 2 ELISA tests used alternately
+
+## Application of the model  
+
+- Surveillance data collected from 2014 to 2020 used as model input
+- Model run separately for each *département* and each year
+- MCMC draws generated by Stan for each parameter analysed and presented
+
+## Test characteristics: variation with time
+
+:::: {.columns}
+
+::: {.column width="50%"}
+- Finistère taken as an example for years 2014 to 2020
+  - BTMab2 performs much better than BTMab1
+  - Little variation with time
+:::
+
+::: {.column width="50%"}
+
+![](figs/bzh_dist_dept29_compYear.png){height="110%"}
+:::
+::::
+
+## Test characteristics: variation with département
+
+- 2020 taken as an example
+  - Little variation in estimated test characteristics between départements
+
+![](figs/bzh_dist_dept_comp.png){fig-align="center"}
+
+## Dynamics of seroconversion
+
+:::: {.columns}
+
+::: {.column width="60%"}
+- Mean monthly probability of seroconversion ($\tau_1$) varied between 1% and 7%
+  - Small and stable between 1% and 3% in Finistère and Morbihan
+  - Higher and more variable between 3 and 7% in Finistère
+- Mean monthly probability of remaining seropositive ($\tau_2$) varied between 80% and 95% : 
+  - More variable and lower values in Ille-et-Vilaine
+:::
+
+::: {.column width="40%"}
+![](figs/bzh_tau1_tau2comp_1.png){fig-align="center"}
+:::
+::::
+
+# Conclusions{background="#43464B" background-image="figs/normandes.jpg" style="margin-top: 200px; font-size: 1.5em; text-align: center;"}
+
+## HMMs for modelling surveillance data
+
+- A statistical framework well-suited for modelling test results from surveillance programmes, which are typically imperfect and time-correlated
+- Keeping test results continuous improves estimation performance when evaluated on simulated data:
+  - Compared to using binary test results
+  - When the underlying distributions for negative/positive results are further apart
+  - When temporal correlation increases
+- Temporal correlation in BVDV seropositivity in  Brittany ($\tau_1 \approx 0.05$, $\tau_2 \approx 0.9$)
+  - Herds are unlikely to change status between tests conducted every 3 months
+  - Therefore, tests performed 3 months apart often measure the same underlying status
+  - This enables the evaluation of test characteristics without a gold standard
+
+## Challenges and future directions
+
+- When prevalence is *low*:
+  - Parameter identification is challenging with weakly informative priors
+  - This can be addressed by using priors derived from early-phase control data or other surveillance programmes
+- Potential future work:
+  - Incorporating risk factors for new infection/seroconversion is conceptually straightforward
+  - Modelling within-herd prevalence to predict the distribution of test results in positive herds
+  
+# Thank you for your attention !
