@@ -87,11 +87,11 @@ library(kableExtra)
   \node at (-1.2, -2) (obsLabel) {\textbf{Observation}};
 
   % Define the first and last nodes
-  \node[state] (Z1) [right of=latentLabel, node distance=2cm] {$Z_1$};
-  \node[state] (Zt1) [right of=Z1, node distance=2.5cm] {$Z_{t-1}$};
-  \node[state] (Zt) [right of=Zt1, node distance=2cm] {$Z_t$};
-  \node[state] (Zt2) [right of=Zt, node distance=2cm] {$Z_{t+1}$};
-  \node[state] (ZT) [right of=Zt2, node distance=2.5cm] {$Z_T$};
+  \node[state] (Z1) [right of=latentLabel, node distance=2cm] {$S_1$};
+  \node[state] (Zt1) [right of=Z1, node distance=2.5cm] {$S_{t-1}$};
+  \node[state] (Zt) [right of=Zt1, node distance=2cm] {$S_t$};
+  \node[state] (Zt2) [right of=Zt, node distance=2cm] {$S_{t+1}$};
+  \node[state] (ZT) [right of=Zt2, node distance=2.5cm] {$S_T$};
 
 
   % Draw the dashed straight line from Z_1 to Zt1
@@ -183,7 +183,7 @@ From [Madouasse et al., 2022](https://peercommunityjournal.org/articles/10.24072
 \node[latenteState](S1) {$S=0$};
 \node[latenteState](S2) [right of=S1, node distance =4cm] {$S=1$};
 
-\node[observation](O1)[below right of=S1, node distance =24mm, yshift = -20mm, xshift = 5mm] {$y \sim P(S = 0) Bern(1 - Sp) + P(S = 1) Bern(Se)$};
+\node[observation](O1)[below right of=S1, node distance =24mm, yshift = -20mm, xshift = 5mm] {$y \sim (1 - \pi_1) Bern(1 - Sp) + \pi_1 Bern(Se)$};
 
 % Arrows
 \draw[thickarrow, thin] (S1.north east) to[bend left = 45] node[above, font=\small\bfseries] {$\tau_1$} (S2.north west);
@@ -282,7 +282,7 @@ ggplot(data.frame(x = c(-5, 8)), aes(x = x)) +
 \node[latenteState](S1) {$S=0$};
 \node[latenteState](S2) [right of=S1, node distance =4cm] {$S=1$};
 
-\node[observation](O1)[below right of=S1, node distance =24mm, yshift = -20mm, xshift = 5mm] {$y \sim P(S = 0) \mathcal{N}(\mu_0, \sigma_0) + P(S = 1) \mathcal{N}(\mu_1, \sigma_1)$};
+\node[observation](O1)[below right of=S1, node distance =24mm, yshift = -20mm, xshift = 5mm] {$y \sim (1 - \pi_1) \mathcal{N}(\mu_0, \sigma_0) + \pi_1 \mathcal{N}(\mu_1, \sigma_1)$};
 
 % Arrows
 \draw[thickarrow, thin] (S1.north east) to[bend left = 45] node[above, font=\small\bfseries] {$\tau_1$} (S2.north west);
@@ -310,8 +310,8 @@ node[below right, font=\small\bfseries,  xshift = -55mm] {Observation}
 - Using simulated data:
   - Compare parameter estimation between the discrete and continuous HMMs
 - Using real BVDV surveillance data from Brittany, France (2014 - 2020):
-  - Determine the parameters of the distributions of BTM antibody tests results
-  - Assess the dynamics of seroconversion over time
+  - Determine the parameters of the distributions of BTM antibody tests results ($\mu$s, $\sigma$s)
+  - Assess the dynamics of seroconversion over time ($\tau_1, \tau_2$)
 
 
 # Model evaluation using simulated data{background="#43464B" background-image="figs/normandes.jpg" style="margin-top: 200px; font-size: 1.5em; text-align: center;"}
@@ -367,7 +367,7 @@ knitr::kable(
 \node[latenteState](S1) {$S=0$};
 \node[latenteState](S2) [right of=S1, node distance =4cm] {$S=1$};
 
-\node[observation](O1)[below right of=S1, node distance =24mm, yshift = -20mm, xshift = 5mm] {$y \sim P(S = 0) Bern(1 - Sp) + P(S = 1) Bern(Se)$};
+\node[observation](O1)[below right of=S1, node distance =24mm, yshift = -20mm, xshift = 5mm] {$y \sim (1 - \pi_1) Bern(1 - Sp) + \pi_1 Bern(Se)$};
 
 % Arrows
 \draw[thickarrow, thin] (S1.north east) to[bend left = 45] node[above, font=\small\bfseries] {$\tau_1$} (S2.north west);
@@ -405,7 +405,7 @@ node[below right, font=\small\bfseries,  xshift = -55mm] {Observation}
 \node[latenteState](S1) {$S=0$};
 \node[latenteState](S2) [right of=S1, node distance =4cm] {$S=1$};
 
-\node[observation](O1)[below right of=S1, node distance =24mm, yshift = -20mm, xshift = 5mm] {$y \sim P(S = 0) \mathcal{N}(\mu_0, \sigma_0) + P(S = 1) \mathcal{N}(\mu_1, \sigma_1)$};
+\node[observation](O1)[below right of=S1, node distance =24mm, yshift = -20mm, xshift = 5mm] {$y \sim (1 - \pi_1) \mathcal{N}(\mu_0, \sigma_0) + \pi_1 \mathcal{N}(\mu_1, \sigma_1)$};
 
 % Arrows
 \draw[thickarrow, thin] (S1.north east) to[bend left = 45] node[above, font=\small\bfseries] {$\tau_1$} (S2.north west);
