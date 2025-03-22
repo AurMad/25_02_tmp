@@ -1,0 +1,30 @@
+% Background colors
+\setbeamercolor{background canvas}{bg=white}
+\setbeamercolor{frametitle}{fg=white,bg=gray!20!black}
+\setbeamercolor{normal text}{fg=black}
+
+% Title and subtitle formatting
+\setbeamerfont{title}{size=\LARGE, series=\bfseries}
+\setbeamerfont{subtitle}{size=\Large, series=\normalfont}
+
+% Slide title formatting
+\setbeamerfont{frametitle}{size=\Large, series=\bfseries}
+
+% Layout customization (to approximate HTML slides spacing)
+\setbeamertemplate{frametitle}[default][center]
+
+% Vertical spacing
+\addtobeamertemplate{frametitle}{}{%
+  \vspace{0.5em}
+}
+
+% Horizontal centering by default
+\usepackage{ragged2e}
+\setbeamertemplate{itemize/enumerate body begin}{\justifying}
+
+% Slide number display
+\setbeamertemplate{footline}[frame number]
+
+% Adjust margins for RevealJS-style spacing
+\setbeamersize{text margin left=1.5cm,text margin right=1.5cm}
+
